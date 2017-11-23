@@ -11,7 +11,11 @@
 #                                                                   #
 #####################################################################
 
-from __future__ import division
+from __future__ import division, unicode_literals, print_function, absolute_import
+from labscript_utils import PY2
+if PY2:
+    str = unicode
+
 import itertools
 import os
 import sys
@@ -30,14 +34,15 @@ import zprocess
 
 __version__ = '2.1.0'
 
-if not sys.version < '3':
-    unicode = str
 
 def is_valid_python_identifier(name):
     import tokenize
-    import StringIO
+    if PY2:
+        import StringIO as io
+    else:
+        import io
     try:
-        tokens = list(tokenize.generate_tokens(StringIO.StringIO(name).readline))
+        tokens = list(tokenize.generate_tokens(io.StringIO(name).readline))
     except tokenize.TokenError:
         return False
     if len(tokens) == 2:
@@ -228,7 +233,7 @@ def get_value(filename, groupname, globalname):
         value = f['globals'][groupname].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = str(value)
         return value
 
 
@@ -242,7 +247,7 @@ def get_units(filename, groupname, globalname):
         value = f['globals'][groupname]['units'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = str(value)
         return value
 
 
@@ -256,7 +261,7 @@ def get_expansion(filename, groupname, globalname):
         value = f['globals'][groupname]['expansion'].attrs[globalname]
         # Replace numpy strings with python unicode strings.
         # DEPRECATED, for backward compat with old files
-        value = unicode(value)
+        value = str(value)
         return value
 
 
@@ -295,7 +300,7 @@ def iterator_to_tuple(iterator, max_length=1000000):
 
 def get_all_groups(h5_files):
     """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files, str) or isinstance(h5_files, unicode):
+    if not isinstance(h5_files, list):
         h5_files = [h5_files]
     groups = {}
     for path in h5_files:
@@ -331,9 +336,9 @@ def get_globals(groups):
                     expansion = expansions[global_name]
                     # Replace numpy strings with python unicode strings.
                     # DEPRECATED, for backward compat with old files
-                    value = unicode(value)
-                    unit = unicode(unit)
-                    expansion = unicode(expansion)
+                    value = str(value)
+                    unit = str(unit)
+                    expansion = str(expansion)
                     sequence_globals[group_name][global_name] = value, unit, expansion
     return sequence_globals
 
@@ -727,7 +732,7 @@ def dict_diff(dict1, dict2):
     """Return the difference between two dictionaries as a dictionary of key: [val1, val2] pairs.
     Keys unique to either dictionary are included as key: [val1, '-'] or key: ['-', val2]."""
     diff_keys = []
-    common_keys = np.intersect1d(dict1.keys(), dict2.keys())
+    common_keys = np.intersect1d(list(dict1.keys()), list(dict2.keys()))
     for key in common_keys:
         if np.iterable(dict1[key]) or np.iterable(dict2[key]):
             if not np.array_equal(dict1[key], dict2[key]):
@@ -758,13 +763,16 @@ def remove_comments_and_tokenify(line):
     comparisons between lines to be made without being sensitive to
     whitespace."""
     import tokenize
-    import StringIO
+    if PY2:
+        import StringIO as io
+    else:
+        import io
     result_expression = ''
     result_tokens = []
     error_encountered = False
     # This never fails because it produces a generator, syntax errors
     # come out when looping over it:
-    tokens = tokenize.generate_tokens(StringIO.StringIO(line).readline)
+    tokens = tokenize.generate_tokens(io.StringIO(line).readline)
     try:
         for token_type, token_value, (_, start), (_, end), _ in tokens:
             if token_type == tokenize.COMMENT and not error_encountered:
@@ -798,7 +806,7 @@ def flatten_globals(sequence_globals, evaluated=False):
 
 
 def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_string=True):
-    """Given two sets of globals groups, perform a diff of the raw 
+    """Given two sets of globals groups, perform a diff of the raw
     and evaluated globals."""
     our_sequence_globals = get_globals(active_groups)
     other_sequence_globals = get_globals(other_groups)
