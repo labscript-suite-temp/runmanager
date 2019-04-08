@@ -72,6 +72,7 @@ from labscript_utils.ls_zprocess import zmq_get, ProcessTree
 from labscript_utils.labconfig import LabConfig, config_prefix
 from labscript_utils.setup_logging import setup_logging
 import labscript_utils.shared_drive as shared_drive
+from zprocess import raise_exception_in_thread
 import runmanager
 
 from qtutils import inmain, inmain_decorator, UiLoader, inthread, DisconnectContextManager
@@ -1963,17 +1964,12 @@ class RunManager(object):
         name_items = [item for item in selected_items
                       if item.column() == self.GROUPS_COL_NAME
                       and item.parent() is not None]
-        # Make things a bit faster by acquiring network only locks on all the
-        # files we're dealing with.  That way all the open and close
-        # operations will be faster.
         filenames = set(item.parent().text() for item in name_items)
-        file_locks = [labscript_utils.h5_lock.NetworkOnlyLock(filename) for filename in filenames]
-        with nested(*file_locks):
-            for item in name_items:
-                globals_file = item.parent().text()
-                group_name = item.text()
-                if (globals_file, group_name) not in self.currently_open_groups:
-                    self.open_group(globals_file, group_name, trigger_preparse=False)
+        for item in name_items:
+            globals_file = item.parent().text()
+            group_name = item.text()
+            if (globals_file, group_name) not in self.currently_open_groups:
+                self.open_group(globals_file, group_name, trigger_preparse=False)
         if name_items:
             self.globals_changed()
 
@@ -2487,7 +2483,7 @@ class RunManager(object):
                 # Raise the error, but keep going so we don't take down the
                 # whole thread if there is a bug.
                 exc_info = sys.exc_info()
-                zprocess.raise_exception_in_thread(exc_info)
+                raise_exception_in_thread(exc_info)
                 continue
 
     def get_group_item_by_name(self, globals_file, group_name, column, previous_name=None):
@@ -2983,7 +2979,7 @@ class RunManager(object):
                         self.open_globals_file(globals_file)
                         self.last_opened_globals_folder = os.path.dirname(globals_file)
                     except Exception:
-                        zprocess.raise_exception_in_thread(sys.exc_info())
+                        raise_exception_in_thread(sys.exc_info())
                         continue
                 else:
                     self.output_box.output('\nWarning: globals file %s no longer exists\n' % globals_file, red=True)
@@ -3128,7 +3124,7 @@ class RunManager(object):
                 # Raise it so whatever bug it is gets seen, but keep going so
                 # the thread keeps functioning:
                 exc_info = sys.exc_info()
-                zprocess.raise_exception_in_thread(exc_info)
+                raise_exception_in_thread(exc_info)
                 continue
 
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True, expansion_order = None, return_dimensions = False):
